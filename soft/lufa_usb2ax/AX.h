@@ -73,11 +73,11 @@ Original copyright notice :
 
 
 // Now for special ones for Pose downloads...
-#define AX_REG_POSE_LOW_FIRST_ID   30
+#define AX_REG_POSE_FIRST_REG	   30
 #define AX_REG_POSE_INTERPOLATING  30
 #define AX_REG_POSE_SIZE		   31
-#define AX_REG_POSE_ID_FIRST	   32  // Try with 32 of these to start off with.
-#define AX_REG_POSE_ID_LAST        63  // Has the Servo IDs for each slot that is part of a pose
+#define AX_REG_POSE_ID_FIRST	   32  // Try with 31 of these to start off with.
+#define AX_REG_POSE_LAST_REG	   (AX_REG_POSE_ID_FIRST+30)
 
 		
 

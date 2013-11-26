@@ -60,19 +60,12 @@ def read_and_print():
         time.sleep(0.01)
         
 def writeReg(id, reg, val):
-    checksum = ~((id + 5 + 3 + reg + 1 + val) % 256)
-    strout = '\xFF\xFF'+chr(id)+'\x05\x03'+chr(reg)+chr(1)+chr(val)+chr(checksum & 0xff)
+    checksum = ~((id + 4 + 3 + reg + val) % 256)
+    strout = '\xFF\xFF'+chr(id)+'\x04\x03'+chr(reg)+chr(val)+chr(checksum & 0xff)
     ser.write(strout) #try to output all of string at once...
     lock.acquire()
     dumpStr(strout)
     lock.release();
-#    ser.write('\xFF\xFF')
-#    ser.write(chr(id))
-#    ser.write('\x04\x03')
-#    ser.write(chr(reg))
-#    ser.write(chr(01))
-#    ser.write(chr(val))
-#    ser.write(chr(checksum & 0xff))
 
 def readReg(id, reg, cnt):
     checksum = ~((id + 4 + 2 + reg + cnt) % 256)
