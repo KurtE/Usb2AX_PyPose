@@ -1,7 +1,36 @@
+Warning
+#######
+
+This is a Work In Progress!  There are no warrantees or Guarantees 
+of any type that this code is useable for anything.  But I hope it is.
+
+This is a hacked up version of the USB2AX project that I am trying to add  some
+additional functionality.  Also I lot of the testing using a sparkfun atmega32u4
+breakout board.  More on how to configure for this soon.
+
+Note: I only have a subset of the files here from the original project.  I don't
+have the schematics nor the test programs, nor the LUFA library.  You can grab
+all of these files from the original project.
+
+You can find out more information up at the website http://www.xevelabs.com/doku.php?id=product:usb2ax:usb2ax
+
+The original git library is located at: https://paranoidstudio.assembla.com/code/paranoidstudio/git/nodes/master/usb2ax
+
+
+
 ParanoidStudio
 ==============
 
 USB2AX - Small USB to AX/MX-Series Dynamixel
 -------------------------
 
+Additional Functionality
+========================
+
+Fix Me!
+
+How to use Sparkfun Breakout Board
+==================================
+
+Fix Me!
 

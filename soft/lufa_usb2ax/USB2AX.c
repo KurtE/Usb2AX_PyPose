@@ -142,9 +142,7 @@ int main(void){
     
     for (;;){
 #ifdef DEBUG				
-		cli();
 		hwb_toggle(PORTD7);
-		sei();
 #endif		
 		PoseInterpolateStep();	// Not sure when best to call this in loop
         

@@ -117,7 +117,8 @@ readReg(USBTOAX_ID, AX_VERSION, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_SIZE, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_ID_FIRST, 1)
 
-moveSlot1(512, 1000, 1)
+moveSlot1(512, 500, 0)
+time.sleep(0.5)
 
 try:
     while True:

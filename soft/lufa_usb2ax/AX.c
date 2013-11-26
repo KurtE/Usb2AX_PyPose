@@ -40,13 +40,13 @@ uint8_t g_bRegReturnVal = 2;
 
 // COULD do with union...
 uint8_t g_abPoseRegVals[AX_REG_POSE_LAST_REG-AX_REG_POSE_FIRST_REG + 1] = {0, 31 };
-
+#define GETPOSEREGVAL(reg) (g_abPoseRegVals[(reg) - AX_REG_POSE_FIRST_REG])
 // For AX12 like servos max values are 1023 if we shift left 3 bits still no problem fitting.
 // for MX servos I believe max is 4095, so again should fit when shifted left 3, with room for sign bit...
 typedef struct _poseinfo {
-	int16_t		pose_;
-	int16_t		next_pose_;
-	int16_t		speed_;
+	uint16_t		pose_;
+	uint16_t		next_pose_;
+	uint16_t		speed_;
 	} POSEINFO;
 
 POSEINFO g_aPoseinfo[AX_SYNC_READ_MAX_DEVICES];	
@@ -198,7 +198,7 @@ void local_read(uint8_t addr, uint8_t nb_bytes){
 	} else if ((addr == AX_REG_RETURN_LEVEL) && (nb_bytes == 1)) {
 		axStatusPacket(AX_ERROR_NONE, &g_bRegReturnVal, 1);
 	} else if ((addr >= AX_REG_POSE_FIRST_REG) && (top <= AX_REG_POSE_LAST_REG)) {
-		axStatusPacket(AX_ERROR_NONE, &g_abPoseRegVals[addr - AX_REG_POSE_FIRST_REG], nb_bytes);
+		axStatusPacket(AX_ERROR_NONE, &GETPOSEREGVAL(addr), nb_bytes);
 	} else
 		axStatusPacket( AX_ERROR_RANGE, NULL, 0 );
 	
@@ -208,9 +208,7 @@ void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb){
 	uint16_t top = (uint16_t)addr + nb_bytes;
 	
 	#ifdef DEBUG
-	cli();
 	hwbb_toggle(PORTB6);
-	sei();
 	#endif
 	// BUGBUG:: not currently supporting setting the version values and the like.
 	if ((addr == AX_REG_RETURN_LEVEL) && (nb_bytes == 1)) {
@@ -219,7 +217,7 @@ void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb){
 		
 	} else if ((addr >= AX_REG_POSE_FIRST_REG) && (top <= AX_REG_POSE_LAST_REG)) {
 		// Update the logical registers to the new values
-		uint8_t *pbReg = &g_abPoseRegVals[addr-AX_REG_POSE_FIRST_REG];
+		uint8_t *pbReg = &GETPOSEREGVAL(addr);
 		while (nb_bytes--)
 			*pbReg++ = *pb++;
 		axStatusPacket(AX_ERROR_NONE, 0, 0);
@@ -230,10 +228,10 @@ void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb){
 
 void ProcessPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 	#ifdef DEBUG
-	cli();
 	hwb_toggle(PORTD4);
-	sei();
 	#endif
+	uint8_t abInfoRet[20];
+	uint8_t cbInfoRet = 0;
 // First 2 bytes is the move time in ms
 	// next 5 bytes is a mask of which slots there is data passed to us. 
 	if (nb_bytes < 7) {
@@ -241,11 +239,14 @@ void ProcessPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 		return;
 	}	
 	
-	int8_t cDeltaCntServosMoving = 0;
-	uint16_t wMoveTime = *pb + (*(pb+1) << 8);
+	int8_t cServosInterpolating = GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING);
+	uint16_t wMoveTime = *pb + (uint16_t)(*(pb+1) << 8);
 	uint16_t wMoveIters = (wMoveTime / BIOLOID_FRAME_LENGTH) + 1;
 	pb +=2;
 	uint8_t err = AX_ERROR_NONE;
+
+	abInfoRet[cbInfoRet++] = wMoveIters & 0xff;
+	abInfoRet[cbInfoRet++] = wMoveIters >> 8;
 		
 	// We use only 7 bits per byte as to not get FF values which screw up the format of packets.
 	// Since 2 byte registers are stored low to high, should probably have lowest 7 first... High bits in the 5th byte
@@ -258,10 +259,6 @@ void ProcessPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 	    passthrough_mode = AX_DIVERT;
 	}
 	
-	for (uint8_t i = 0; i < 5; i++) {
-		ulMask |= *pb << (7*i);
-		pb++;
-	}
 	
 	// Now lets walk through the data and grab the new position for those slots that have data specified by the bit mask
 	pb += 5; //point to the first position value
@@ -277,76 +274,101 @@ void ProcessPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 			if (fInitPositions) {
 				// We need to load in the current position from the actual servo.
 				// Need to better abstract where we get the ID from.
-				if (axGetRegister(g_abPoseRegVals[iSlot+(AX_REG_POSE_ID_FIRST-AX_REG_POSE_FIRST_REG)], AX_GOAL_POSITION_L, 2)) {
-					g_aPoseinfo[iSlot].pose_ = (local_rx_buffer[5] + (local_rx_buffer[6] << 8)) << BIOLOID_SHIFT;
+				if (axGetRegister(GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST), AX_GOAL_POSITION_L, 2)) {
+					g_aPoseinfo[iSlot].pose_ = ((uint16_t)local_rx_buffer[5] + ((uint16_t)local_rx_buffer[6] << 8)) << BIOLOID_SHIFT;
 				} else
-					g_aPoseinfo[iSlot].pose_ = 512 << BIOLOID_SHIFT;	// If read fails init to something...
+					g_aPoseinfo[iSlot].pose_ = (uint16_t)512 << BIOLOID_SHIFT;	// If read fails init to something...
 			}
-			g_aPoseinfo[iSlot].next_pose_ = (*pb + (*(pb+1) << 8)) << BIOLOID_SHIFT;
+			g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(pb[0] + ((uint16_t)(pb[1]) << 8)) << BIOLOID_SHIFT);
 			pb += 2;
 			nb_bytes -= 2;
 			
 			// Compute Speed. 
 			if (g_aPoseinfo[iSlot].speed_)
-				cDeltaCntServosMoving--;	// was already moving so don't add twice.
+				cServosInterpolating--;	// was already moving so don't add twice.
 				// Handle case where we already had a speed...
 			if (g_aPoseinfo[iSlot].next_pose_ != g_aPoseinfo[iSlot].pose_) {
-				g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].next_pose_ - g_aPoseinfo[iSlot].pose_) / wMoveIters;
-				if (!g_aPoseinfo[iSlot].speed_)
-					g_aPoseinfo[iSlot].speed_ = 1;	// make sure it moves some
-				cDeltaCntServosMoving++;	
+				if(g_aPoseinfo[iSlot].next_pose_ > g_aPoseinfo[iSlot].pose_) {
+					g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].next_pose_ - g_aPoseinfo[iSlot].pose_) / wMoveIters + 1;
+				} else {
+					g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].pose_ - g_aPoseinfo[iSlot].next_pose_) / wMoveIters + 1;
+				}
+				cServosInterpolating++;	
 			} else
 				g_aPoseinfo[iSlot].speed_ = 0;
+			abInfoRet[cbInfoRet++] = iSlot;
+			abInfoRet[cbInfoRet++] = GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST);
+			abInfoRet[cbInfoRet++] = g_aPoseinfo[iSlot].pose_ & 0xff;
+			abInfoRet[cbInfoRet++] = ((uint16_t)g_aPoseinfo[iSlot].pose_)>>8;
+			abInfoRet[cbInfoRet++] = g_aPoseinfo[iSlot].next_pose_ & 0xff;
+			abInfoRet[cbInfoRet++] = ((uint16_t)g_aPoseinfo[iSlot].next_pose_)>>8;
+			abInfoRet[cbInfoRet++] = g_aPoseinfo[iSlot].speed_ & 0xff;
+			abInfoRet[cbInfoRet++] = ((uint16_t)g_aPoseinfo[iSlot].speed_)>>8;
 		}
 	} 
 	// If we are now starting a new move 0 out the move timer.
-	if (!g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG])
+	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING))
 		pose_timer = 0;	// timer for processing poses.
-
-	g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG] += cDeltaCntServosMoving;   // don't clear if other move is happening
-	axStatusPacket(err, 0, 0);
+	if (cServosInterpolating < 0)
+		cServosInterpolating = 0;
+	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = cServosInterpolating;   // don't clear if other move is happening
+	abInfoRet[cbInfoRet++] = (uint8_t)cServosInterpolating;
+	abInfoRet[cbInfoRet++] = g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG];
+	abInfoRet[cbInfoRet++] = pose_timer & 0xff;
+	abInfoRet[cbInfoRet++] = pose_timer >> 8;
+	axStatusPacket(err, abInfoRet, cbInfoRet);
 	passthrough_mode = AX_PASSTHROUGH;
 }
 
 void PoseInterpolateStep(void) {
 	// If no interpolation is active or a frame timeout has not happened yet return now. 
-	if (!g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG] || (pose_timer < POSE_FRAME_TIMER))
+	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) || (pose_timer < POSE_FRAME_TIMER))
 		return;
 #ifdef DEBUG
-	cli();
 	hwbb_up(PORTB7);
-	sei();
 #endif
 		
 	// Don't just set to zero as to not try to accumulate deltas from desired timings.	
 	pose_timer -= POSE_FRAME_TIMER;	
 	
-	 int length = 4 + (g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG] * 3);   // 3 = id + pos(2byte)
-	 int checksum = 254 + length + AX_CMD_SYNC_WRITE + 2 + AX_GOAL_POSITION_L;
-	 serial_write(0xFF);
-	 serial_write(0xFF);
-	 serial_write(0xFE);
-	 serial_write(length);
-	 serial_write(AX_CMD_SYNC_WRITE);
-	 serial_write(AX_GOAL_POSITION_L);
-	 serial_write(2);
+	setTX();	// make sure we are in output mode. 
+	int length = 4 + (GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) * 3);   // 3 = id + pos(2byte)
+	int checksum = 254 + length + AX_CMD_SYNC_WRITE + 2 + AX_GOAL_POSITION_L;
+	serial_write(0xFF);
+	serial_write(0xFF);
+	serial_write(0xFE);
+	serial_write(length);
+	serial_write(AX_CMD_SYNC_WRITE);
+	serial_write(AX_GOAL_POSITION_L);
+	serial_write(2);
 
 	// Need to loop through all of the slots looking for items that need to be updated.
 	// Also build a sync write to do the actual move.
-	for (uint8_t iSlot = 0; iSlot < g_abPoseRegVals[AX_REG_POSE_SIZE-AX_REG_POSE_FIRST_REG]; iSlot++) {
-		if (g_aPoseinfo[iSlot].speed_) {
-			g_aPoseinfo[iSlot].pose_ += g_aPoseinfo[iSlot].speed_;
-			if (((g_aPoseinfo[iSlot].speed_ < 0) && (g_aPoseinfo[iSlot].pose_ <= g_aPoseinfo[iSlot].next_pose_))	||
-					((g_aPoseinfo[iSlot].speed_ > 0) && (g_aPoseinfo[iSlot].pose_ >= g_aPoseinfo[iSlot].next_pose_))) {
-				// Servo has met it's goal position, so clear out this entry.		
-				g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
-				g_aPoseinfo[iSlot].speed_ = 0;	
-				g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG]--;	// decrement how many left
+	for (uint8_t iSlot = 0; iSlot < GETPOSEREGVAL(AX_REG_POSE_SIZE); iSlot++) {
+		int diff = (int)g_aPoseinfo[iSlot].next_pose_ - (int)g_aPoseinfo[iSlot].pose_;
+		if (diff) {
+			if (diff > 0) {
+				if (diff < g_aPoseinfo[iSlot].speed_) {
+					g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
+					g_aPoseinfo[iSlot].speed_ = 0;
+					GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)--;	// decrement how many left
+				} else {
+					g_aPoseinfo[iSlot].pose_ += g_aPoseinfo[iSlot].speed_;
+				}
+			} else {
+				if (-diff < g_aPoseinfo[iSlot].speed_) {
+					g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
+					g_aPoseinfo[iSlot].speed_ = 0;
+					GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)--;	// decrement how many left
+					} else {
+					g_aPoseinfo[iSlot].pose_ -= g_aPoseinfo[iSlot].speed_;
+				}
 			}
+
 			// Output the three bytes for this servo 
 			int temp = g_aPoseinfo[iSlot].pose_ >> BIOLOID_SHIFT;
-			checksum += (temp&0xff) + (temp>>8) + g_abPoseRegVals[iSlot+(AX_REG_POSE_ID_FIRST-AX_REG_POSE_FIRST_REG)];
-			serial_write(g_abPoseRegVals[iSlot+(AX_REG_POSE_ID_FIRST-AX_REG_POSE_FIRST_REG)]);
+			checksum += (temp&0xff) + (temp>>8) + GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST);
+			serial_write(GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST));
 			serial_write(temp&0xff);
 			serial_write(temp>>8);
 		}	
@@ -354,9 +376,7 @@ void PoseInterpolateStep(void) {
 	// And output the checksum for the move.
 	serial_write(0xff - (checksum % 256));
 #ifdef DEBUG
-	cli();
 	hwbb_down(PORTB7);
-	sei();
 #endif
 
 }
