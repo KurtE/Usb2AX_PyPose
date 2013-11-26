@@ -1,0 +1,1 @@
+avrdude -p atmega32u4 -P COM62 -c avr109 -U flash:w:usb2ax.hex -U eeprom:w:usb2ax.eep
