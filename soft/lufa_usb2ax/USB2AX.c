@@ -288,7 +288,8 @@ void process_incoming_USB_data(void){
                             receive_timer = 0;
                         } else if ((rxbyte[PACKET_INSTRUCTION] == AX_CMD_READ_DATA) || 
 								(rxbyte[PACKET_INSTRUCTION] == AX_CMD_WRITE_DATA) ||
-								(rxbyte[PACKET_INSTRUCTION] == AX_CMD_DO_POSE)) {
+								((rxbyte[PACKET_INSTRUCTION] >= AX_READ_POSE)
+									&& (rxbyte[PACKET_INSTRUCTION] <= AX_CMD_POSE_ABORT))) {
 				            ax_state = AX_GET_PARAMETERS;
                             ax_checksum = AX_ID_DEVICE + rxbyte[PACKET_INSTRUCTION] + rxbyte[PACKET_LENGTH];
 						    receive_timer = 0;
@@ -329,22 +330,41 @@ void process_incoming_USB_data(void){
                         if((ax_checksum%256) != 255){  // ignore message if checksum is bad
                             _blih();
                         } else {
-							if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_SYNC_READ) {
-								if((rxbyte[6] == 0) || (rxbyte[6] > 6)){  // maximum of 6 bytes to read, else to big for return packet
-									axStatusPacket(AX_ERROR_RANGE, NULL, 0);
-								} else {
-									sync_read(&rxbyte[5], rxbyte[PACKET_LENGTH] - 2);
-								}									
-							} else if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_READ_DATA) {
-								// ff ff fd 04 02 <reg> <len>
-								local_read(rxbyte[5], rxbyte[6]);
-							} else if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_WRITE_DATA) {
-								// ff ff fd <len+3> 03 reg data...
-								local_write(rxbyte[5], rxbyte[PACKET_LENGTH] -3, &rxbyte[6]);
-							} else if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_DO_POSE) {
-								// ff ff fd <len> 85 data...
-								ProcessPoseCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
-						    }
+							switch (rxbyte[PACKET_INSTRUCTION]) {
+								case AX_CMD_SYNC_READ:
+									if((rxbyte[6] == 0) || (rxbyte[6] > 6)){  // maximum of 6 bytes to read, else to big for return packet
+										axStatusPacket(AX_ERROR_RANGE, NULL, 0);
+									} else {
+										sync_read(&rxbyte[5], rxbyte[PACKET_LENGTH] - 2);
+									}
+									break;									
+								case AX_CMD_READ_DATA:
+									// ff ff fd 04 02 <reg> <len>
+									local_read(rxbyte[5], rxbyte[6]);
+									break;
+									
+								case AX_CMD_WRITE_DATA:
+									// ff ff fd <len+3> 03 reg data...
+									local_write(rxbyte[5], rxbyte[PACKET_LENGTH] -3, &rxbyte[6]);
+									break;
+								
+								case AX_READ_POSE:
+									// ff ff fd <len> 85 data...
+									ProcessReadPoseCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
+									break;
+								case AX_CMD_POSE_IDS:
+									// ff ff fd <len> 86 data...
+									ProcessPoseIDsCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
+									break;
+								case AX_CMD_POSE_MASK:
+									// ff ff fd <len> 87 data...
+									ProcessPoseMaskCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
+									break;
+								case AX_CMD_POSE_ABORT:
+									// ff ff fd <len> 88 data...
+									ProcessPoseAbortCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
+									break;
+							}
 						    ax_state = AX_SEARCH_FIRST_FF;													
                         }
                     }

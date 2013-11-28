@@ -39,7 +39,7 @@ Original copyright notice :
 #include "USB2AX.h"
 
 #define BIOLOID_SHIFT             3
-#define BIOLOID_FRAME_LENGTH      33
+#define BIOLOID_FRAME_LENGTH      20 /* 33 */
 #define POSE_FRAME_TIMER	(BIOLOID_FRAME_LENGTH*50)
 
 #define AX_ID_DEVICE        0xFD
@@ -52,7 +52,11 @@ Original copyright notice :
 #define AX_CMD_BOOTLOAD     0x08 
 #define AX_CMD_SYNC_WRITE	0x83
 #define AX_CMD_SYNC_READ    0x84
-#define AX_CMD_DO_POSE		0x85
+#define AX_READ_POSE		0x85		// Read in positions of servo(s)
+#define AX_CMD_POSE_IDS		0x86		// Start a Pose by ID/Position pairs
+#define AX_CMD_POSE_MASK	0x87		// Start a pose by SLOT mask Positions
+#define AX_CMD_POSE_ABORT	0x88		// Abort specific or all Pose Moves
+
 
 #define AX_BUFFER_SIZE	            32
 #define AX_SYNC_READ_MAX_DEVICES    31
@@ -95,7 +99,10 @@ int axGetRegister(uint8_t id, uint8_t addr, uint8_t nb_bytes);
 void sync_read(uint8_t* params, uint8_t nb_params);
 void local_read(uint8_t addr, uint8_t nb_bytes);
 void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb);
-void ProcessPoseCmd(uint8_t nb_bytes, uint8_t *pb);
+void ProcessReadPoseCmd(uint8_t nb_bytes, uint8_t *pb);
+void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb);
+void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb);
+void ProcessPoseAbortCmd(uint8_t nb_bytes, uint8_t *pb);
 void PoseInterpolateStep(void);
 
 #endif /* AX_H_ */

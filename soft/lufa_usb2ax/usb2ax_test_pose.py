@@ -8,12 +8,13 @@ import threading
 #Requires PySerial
 
 com_port = "COM63"
-servo = 14
+servo = 21
 baudrate = 1000000
 
-AX_CMD_READ_DATA  =  0x02
-AX_CMD_WRITE_DATA =	0x03
-AX_CMD_DO_POSE	=	0x85
+AX_CMD_READ_DATA  = 0x02
+AX_CMD_WRITE_DATA = 0x03
+AX_CMD_POSE_IDS   = 0x86
+AX_CMD_POSE_MASK  = 0x87
 
 AX_MODEL_NUMBER_L =          0
 AX_MODEL_NUMBER_H =          1
@@ -40,9 +41,10 @@ stop_flag = threading.Event()
 lock = threading.Lock()
 
 def dumpStr(strToD):
+    print "(", len(strToD), ")",
     for i in range (0, len(strToD)):
         print hex(ord(strToD[i])) ," ",
-        if ((1 %10) == 9) :
+        if ((i % 10) == 9) :
             print "\n"
     print "\n"    
 
@@ -76,14 +78,10 @@ def readReg(id, reg, cnt):
     lock.release();
             
 
-def moveSlot1(pos, time, first):
+def doPoseMask(pos, time):
     pktlen = 2 + 2+5+2
-    strout = '\xFF\xFF'+chr(USBTOAX_ID)+chr(pktlen)+chr(AX_CMD_DO_POSE)+chr(time&0xff)+chr((time >> 8) & 0xff)
-    strout += chr(1)+chr(0)+chr(0)+chr(0)
-    if first:
-        strout += chr(0x40)
-    else:
-        strout += chr(0x0)
+    strout = '\xFF\xFF'+chr(USBTOAX_ID)+chr(pktlen)+chr(AX_CMD_POSE_MASK)+chr(time&0xff)+chr((time >> 8) & 0xff)
+    strout += chr(1)+chr(0)+chr(0)+chr(0)+chr(0)
     strout += chr(pos & 0xff) + chr((pos >> 8) & 0xff)
     checksum = 0
     for i in range (2,len(strout)) :
@@ -93,6 +91,21 @@ def moveSlot1(pos, time, first):
     lock.acquire()
     dumpStr(strout)
     lock.release();
+
+def doPoseID(pos, time):
+    pktlen = 2 + 2+1+2
+    strout = '\xFF\xFF'+chr(USBTOAX_ID)+chr(pktlen)+chr(AX_CMD_POSE_IDS)+chr(time&0xff)+chr((time >> 8) & 0xff)
+    strout += chr(servo)
+    strout += chr(pos & 0xff) + chr((pos >> 8) & 0xff)
+    checksum = 0
+    for i in range (2,len(strout)) :
+        checksum += ord(strout[i])
+    strout += chr((~(checksum % 256)) & 0xff)
+    ser.write(strout)
+    lock.acquire()
+    dumpStr(strout)
+    lock.release();
+
         
               
 plop = thread.start_new_thread(read_and_print, ())
@@ -117,16 +130,15 @@ readReg(USBTOAX_ID, AX_VERSION, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_SIZE, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_ID_FIRST, 1)
 
-moveSlot1(512, 500, 0)
+doPoseMask(512, 500)
 time.sleep(0.5)
 
 try:
     while True:
-        #ser.write('\xFF\xFF\x0E\x07\x03\x1E\x00\x02\x00\x02\xC5') #Movet to ...
-        moveSlot1(256, 500, 0)
-        time.sleep(0.5)
-        #ser.write('\xFF\xFF\x0E\x07\x03\x1E\x00\x01\x00\x02\xC6') #Movet to ...
-        moveSlot1(768, 500, 0)
-        time.sleep(0.5)
+        doPoseMask(256, 2000)
+        time.sleep(2)
+        doPoseID(768, 2000)
+        time.sleep(2)
+
 except:
     stop_flag.set()
