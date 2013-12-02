@@ -52,7 +52,7 @@ Original copyright notice :
 #define AX_CMD_BOOTLOAD     0x08 
 #define AX_CMD_SYNC_WRITE	0x83
 #define AX_CMD_SYNC_READ    0x84
-#define AX_READ_POSE		0x85		// Read in positions of servo(s)
+#define AX_CMD_READ_POSE	0x85		// Read in positions of servo(s)
 #define AX_CMD_POSE_IDS		0x86		// Start a Pose by ID/Position pairs
 #define AX_CMD_POSE_MASK	0x87		// Start a pose by SLOT mask Positions
 #define AX_CMD_POSE_ABORT	0x88		// Abort specific or all Pose Moves
@@ -81,8 +81,10 @@ Original copyright notice :
 #define AX_REG_POSE_INTERPOLATING  30
 #define AX_REG_POSE_SIZE		   31
 #define AX_REG_POSE_ID_FIRST	   32  // Try with 31 of these to start off with.
-#define AX_REG_POSE_LAST_REG	   (AX_REG_POSE_ID_FIRST+30)
+#define AX_REG_POSE_LAST_REG	   (AX_REG_POSE_ID_FIRST+AX_SYNC_READ_MAX_DEVICES-1)
 
+#define AX_REG_SLOT_CUR_POSE_FIRST  64
+#define AX_REG_SLOT_CUR_POSE_LAST	(AX_REG_SLOT_CUR_POSE_FIRST+2*(AX_SYNC_READ_MAX_DEVICES-1)+1)
 		
 
 

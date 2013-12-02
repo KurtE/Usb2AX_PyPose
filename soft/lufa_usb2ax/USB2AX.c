@@ -288,7 +288,7 @@ void process_incoming_USB_data(void){
                             receive_timer = 0;
                         } else if ((rxbyte[PACKET_INSTRUCTION] == AX_CMD_READ_DATA) || 
 								(rxbyte[PACKET_INSTRUCTION] == AX_CMD_WRITE_DATA) ||
-								((rxbyte[PACKET_INSTRUCTION] >= AX_READ_POSE)
+								((rxbyte[PACKET_INSTRUCTION] >= AX_CMD_READ_POSE)
 									&& (rxbyte[PACKET_INSTRUCTION] <= AX_CMD_POSE_ABORT))) {
 				            ax_state = AX_GET_PARAMETERS;
                             ax_checksum = AX_ID_DEVICE + rxbyte[PACKET_INSTRUCTION] + rxbyte[PACKET_LENGTH];
@@ -348,7 +348,7 @@ void process_incoming_USB_data(void){
 									local_write(rxbyte[5], rxbyte[PACKET_LENGTH] -3, &rxbyte[6]);
 									break;
 								
-								case AX_READ_POSE:
+								case AX_CMD_READ_POSE:
 									// ff ff fd <len> 85 data...
 									ProcessReadPoseCmd(rxbyte[PACKET_LENGTH] -2, &rxbyte[5]);
 									break;

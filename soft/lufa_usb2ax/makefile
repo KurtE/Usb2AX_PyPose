@@ -9,7 +9,7 @@
 #         LUFA Project Makefile.
 # --------------------------------------
 
-MCU          = atmega32u4
+MCU          = atmega32u2
 ARCH         = AVR8
 BOARD        = USB2AX_V31
 #BOARD        = NONE

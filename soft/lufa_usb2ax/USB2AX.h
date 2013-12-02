@@ -88,11 +88,12 @@ extern volatile uint16_t pose_timer;	// timer for poses.
 //Dynamixel device Control table
 #define MODEL_NUMBER_L      0x01
 #define MODEL_NUMBER_H      0x42  // arbitrary model number that should not collide with the ones from Robotis
-#define FIRMWARE_VERSION    0x03  // Firmware version, needs to be updated with every new release
+#define FIRMWARE_VERSION    0x04  // Firmware version, needs to be updated with every new release
 
 // used for debug
 // Was simply always PORTD7
-#define DEBUG
+//#define DEBUG
+#ifdef DEBUG
 #define hwb_setup(dbit) bitSet(DDRD,dbit) 
 #define hwb_up(dbit)    bitSet(PORTD,dbit)
 #define hwb_down(dbit)  bitClear(PORTD,dbit)
@@ -102,7 +103,7 @@ extern volatile uint16_t pose_timer;	// timer for poses.
 #define hwbb_up(dbit)    bitSet(PORTB,dbit)
 #define hwbb_down(dbit)  bitClear(PORTB	,dbit)
 #define hwbb_toggle(dbit) bitToggle(PORTB,dbit)
-
+#endif
 
 /* Function Prototypes: */
 void setup_hardware(void);

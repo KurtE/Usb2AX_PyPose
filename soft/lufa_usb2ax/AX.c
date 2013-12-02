@@ -199,6 +199,13 @@ void local_read(uint8_t addr, uint8_t nb_bytes){
 		axStatusPacket(AX_ERROR_NONE, &g_bRegReturnVal, 1);
 	} else if ((addr >= AX_REG_POSE_FIRST_REG) && (top <= AX_REG_POSE_LAST_REG)) {
 		axStatusPacket(AX_ERROR_NONE, &GETPOSEREGVAL(addr), nb_bytes);
+	} else if ((addr >= AX_REG_SLOT_CUR_POSE_FIRST) && (top <= AX_REG_SLOT_CUR_POSE_LAST) && (nb_bytes == 2)) {
+		// Hack way to be able to retrieve the current value from my pose engine...
+		uint8_t abCurPose[2];
+		uint16_t wPose = (g_aPoseinfo[(addr-AX_REG_SLOT_CUR_POSE_FIRST)/2].pose_) >> BIOLOID_SHIFT;	// should verify even number but...
+		abCurPose[0] = wPose & 0xff;
+		abCurPose[1] = wPose >> 8; 
+		axStatusPacket(AX_ERROR_NONE, abCurPose, nb_bytes);
 	} else
 		axStatusPacket( AX_ERROR_RANGE, NULL, 0 );
 	
@@ -234,6 +241,9 @@ void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb){
 void ProcessReadPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 	
 	// Pass 1, cancel all, next pass look at PB for servo list to cancel
+    // divert incoming data to a buffer for local processing
+	// Tell the system we need the bytes ourself, don't pass on to the host
+    passthrough_mode = AX_DIVERT;
 	for (uint8_t iSlot = 0; iSlot < GETPOSEREGVAL(AX_REG_POSE_SIZE); iSlot++) {
 		// We need to load in the current position from the actual servo.
 		// Need to better abstract where we get the ID from.
@@ -246,6 +256,7 @@ void ProcessReadPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
 		g_aPoseinfo[iSlot].speed_ = 0;
 	}
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = 0;	// Clear out the Interpolating state.
+	passthrough_mode = AX_PASSTHROUGH;
 	axStatusPacket(AX_ERROR_NONE, 0, 0);
 }
 
@@ -255,7 +266,7 @@ void ProcessReadPoseCmd(uint8_t nb_bytes, uint8_t *pb) {
  * This version of the command is nice for simple moves. Pass 2 will allow us to specify specific ids.  
  */
 void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	hwb_toggle(PORTD4);
 	uint8_t abInfoRet[20];
 	uint8_t cbInfoRet = 0;
@@ -273,7 +284,7 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
 	nb_bytes -= 2;	//
 	uint8_t err = AX_ERROR_NONE;
 
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = wMoveIters & 0xff;
 	abInfoRet[cbInfoRet++] = wMoveIters >> 8;
 #endif
@@ -310,7 +321,7 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
 			cServosInterpolating++;
 		} else
 			g_aPoseinfo[iSlot].speed_ = 0;
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 		abInfoRet[cbInfoRet++] = iSlot;
 		abInfoRet[cbInfoRet++] = GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST);
 		abInfoRet[cbInfoRet++] = g_aPoseinfo[iSlot].pose_ & 0xff;
@@ -328,7 +339,7 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
 	if (cServosInterpolating < 0)
 		cServosInterpolating = 0;
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = cServosInterpolating;   // don't clear if other move is happening
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = (uint8_t)cServosInterpolating;
 	abInfoRet[cbInfoRet++] = g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG];
 	abInfoRet[cbInfoRet++] = pose_timer & 0xff;
@@ -345,7 +356,7 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
  * This version of the command is good for large moves.
  */
 void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	hwb_toggle(PORTD4);
 	uint8_t abInfoRet[20];
 	uint8_t cbInfoRet = 0;
@@ -362,7 +373,7 @@ void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
 	uint16_t wMoveIters = (wMoveTime / BIOLOID_FRAME_LENGTH) + 1;
 	pb +=2;
 	uint8_t err = AX_ERROR_NONE;
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = wMoveIters & 0xff;
 	abInfoRet[cbInfoRet++] = wMoveIters >> 8;
 #endif		
@@ -397,9 +408,10 @@ void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
 					g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].pose_ - g_aPoseinfo[iSlot].next_pose_) / wMoveIters + 1;
 				}
 				cServosInterpolating++;	
-			} else
+			} else {
 				g_aPoseinfo[iSlot].speed_ = 0;
-#ifdef DEBUG
+			}
+#ifdef DEBUG_POSE
 			abInfoRet[cbInfoRet++] = iSlot;
 			abInfoRet[cbInfoRet++] = GETPOSEREGVAL(iSlot+AX_REG_POSE_ID_FIRST);
 			abInfoRet[cbInfoRet++] = g_aPoseinfo[iSlot].pose_ & 0xff;
@@ -417,7 +429,7 @@ void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
 	if (cServosInterpolating < 0)
 		cServosInterpolating = 0;
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = cServosInterpolating;   // don't clear if other move is happening
-#ifdef DEBUG
+#ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = (uint8_t)cServosInterpolating;
 	abInfoRet[cbInfoRet++] = g_abPoseRegVals[AX_REG_POSE_INTERPOLATING-AX_REG_POSE_FIRST_REG];
 	abInfoRet[cbInfoRet++] = pose_timer & 0xff;
@@ -474,24 +486,25 @@ void PoseInterpolateStep(void) {
 
 	// Need to loop through all of the slots looking for items that need to be updated.
 	// Also build a sync write to do the actual move.
+	uint8_t bCntStillMoving = 0;
 	for (uint8_t iSlot = 0; iSlot < GETPOSEREGVAL(AX_REG_POSE_SIZE); iSlot++) {
 		int diff = (int)g_aPoseinfo[iSlot].next_pose_ - (int)g_aPoseinfo[iSlot].pose_;
 		if (diff) {
 			if (diff > 0) {
-				if (diff < g_aPoseinfo[iSlot].speed_) {
+				if (diff <= g_aPoseinfo[iSlot].speed_) {
 					g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
 					g_aPoseinfo[iSlot].speed_ = 0;
-					GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)--;	// decrement how many left
 				} else {
 					g_aPoseinfo[iSlot].pose_ += g_aPoseinfo[iSlot].speed_;
+					bCntStillMoving++;
 				}
 			} else {
-				if (-diff < g_aPoseinfo[iSlot].speed_) {
+				if (-diff <= g_aPoseinfo[iSlot].speed_) {
 					g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
 					g_aPoseinfo[iSlot].speed_ = 0;
-					GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)--;	// decrement how many left
-					} else {
+				} else {
 					g_aPoseinfo[iSlot].pose_ -= g_aPoseinfo[iSlot].speed_;
+					bCntStillMoving++;
 				}
 			}
 
@@ -505,6 +518,7 @@ void PoseInterpolateStep(void) {
 	}	 
 	// And output the checksum for the move.
 	serial_write(0xff - (checksum % 256));
+	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = bCntStillMoving;	// Update cnt to still do...
 #ifdef DEBUG
 	hwbb_down(PORTB7);
 #endif
