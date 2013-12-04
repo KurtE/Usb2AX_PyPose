@@ -128,6 +128,8 @@ int main(void){
     hwb_setup(PORTD4);
     hwbb_setup(PORTB7);
     hwbb_setup(PORTB6);
+    hwbb_setup(PORTB5);
+    hwbb_setup(PORTB4);
 #endif
 	RingBuffer_InitBuffer(&ToUSB_Buffer, ToUSB_Buffer_Data, sizeof(ToUSB_Buffer_Data));
 	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
@@ -397,7 +399,10 @@ void pass_bytes(uint8_t nb_bytes){
 
 
 void setRX(void) {
-	loop_until_bit_is_set( UCSR1A, TXC1 ); // wait until last byte has been sent (it will set USART Transmit Complete flag)
+	// Don't let this hang.  So lets make sure this can time out...
+	uint8_t	bTimeout = 0xff;
+	do { } while (bTimeout-- && bit_is_clear(UCSR1A, TXC1));
+	//loop_until_bit_is_set( UCSR1A, TXC1 ); // wait until last byte has been sent (it will set USART Transmit Complete flag)
 	
     // enable RX and RX interrupt, disable TX and all TX interrupt
     UCSR1B = ((1 << RXCIE1) | (1 << RXEN1));
@@ -434,7 +439,6 @@ void init_serial(long baud){
     }
     // Another way to put it: if br and br2x are equal, choose the one with the highest stability (without U2X),
     // else choose the closest to the mark (and it will necessarily be the one with U2X).
-
     // enable RX and RX interrupt, disable TX and all TX interrupt
     UCSR1B = ((1 << RXCIE1) | (1 << RXEN1));
 }
@@ -467,6 +471,9 @@ ISR(USART1_RX_vect, ISR_BLOCK){
 
 // global timer
 ISR(TIMER0_COMPA_vect, ISR_BLOCK){
+#ifdef DEBUG
+	hwb_toggle(PORTD4);
+#endif
 	receive_timer++;
     send_timer++;
 	usart_timer++;

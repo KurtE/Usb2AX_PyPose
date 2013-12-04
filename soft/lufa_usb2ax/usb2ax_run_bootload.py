@@ -16,7 +16,7 @@
 #COM_PORT = "/dev/ttyACM0"
 #COM_PORT = "/dev/serial/by-id/usb-Xevelabs_USB2AX_64033353031351600170-if00"
 
-COM_PORT = "COM11"
+COM_PORT = "COM61"
 
 #************************************************************************************
 # TODO :
@@ -24,7 +24,14 @@ COM_PORT = "COM11"
 # - proper copyright notice
 # - error handling (serial package, serial port...)
 
-import serial
+import serial, sys
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        COM_PORT = sys.argv[1]
+
+print "Set Bootloader on: " + COM_PORT
+
+
 bootload_cmd = ''.join(chr(x) for x in [0xff, 0xff, 0xfd, 0x02, 0x08, 0xf8])
 ser = serial.Serial(COM_PORT)
 ser.write(bootload_cmd)

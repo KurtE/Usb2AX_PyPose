@@ -70,7 +70,7 @@ void AXInit() {
  */
 void axStatusPacket(uint8_t err, uint8_t* data, uint8_t nb_bytes){
 	uint16_t checksum = AX_ID_DEVICE + 2 + nb_bytes + err;
-	
+
 	if (g_bRegReturnVal == 2) {
 		cdc_send_byte(0xff);
 		cdc_send_byte(0xff);
@@ -214,9 +214,9 @@ void local_read(uint8_t addr, uint8_t nb_bytes){
 void local_write(uint8_t addr, uint8_t nb_bytes, uint8_t *pb){
 	uint16_t top = (uint16_t)addr + nb_bytes;
 	
-	#ifdef DEBUG
+#ifdef DEBUG
 	hwbb_toggle(PORTB6);
-	#endif
+#endif
 	// BUGBUG:: not currently supporting setting the version values and the like.
 	if ((addr == AX_REG_RETURN_LEVEL) && (nb_bytes == 1)) {
 		g_bRegReturnVal = *pb;	// should do some validation...
