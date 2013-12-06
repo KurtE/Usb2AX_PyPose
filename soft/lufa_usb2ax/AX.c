@@ -39,7 +39,8 @@ extern RingBuffer_t ToUSB_Buffer;
 uint8_t g_bRegReturnVal = 2;
 
 // COULD do with union...
-uint8_t g_abPoseRegVals[AX_REG_POSE_LAST_REG-AX_REG_POSE_FIRST_REG + 1] = {0, 31 };
+// Voltage Pin, Frame length in ms, Interpolating, pose size, ids...
+uint8_t g_abPoseRegVals[AX_REG_POSE_LAST_REG-AX_REG_POSE_FIRST_REG + 1] = {0, BIOLOID_FRAME_LENGTH, 0, 31 };
 #define GETPOSEREGVAL(reg) (g_abPoseRegVals[(reg) - AX_REG_POSE_FIRST_REG])
 // For AX12 like servos max values are 1023 if we shift left 3 bits still no problem fitting.
 // for MX servos I believe max is 4095, so again should fit when shifted left 3, with room for sign bit...
@@ -50,6 +51,10 @@ typedef struct _poseinfo {
 	} POSEINFO;
 
 POSEINFO g_aPoseinfo[AX_SYNC_READ_MAX_DEVICES];	
+uint16_t g_wPoseNextFrameTimeout = BIOLOID_FRAME_LENGTH*TIMER_TICS_PER_MS;
+
+// forward references
+extern void ProcessGetVoltageRequest(void);
 
 /* 
  * Initialize our ax registers and the like
@@ -59,9 +64,8 @@ void AXInit() {
 		g_aPoseinfo[i].pose_ = 512 << BIOLOID_SHIFT;		// shift out to give more room to interpolate.
 		g_aPoseinfo[i].next_pose_ = 512 << BIOLOID_SHIFT;
 		g_aPoseinfo[i].speed_ = 0;
-		g_abPoseRegVals[i+2] = i + 1;
+		GETPOSEREGVAL(i+AX_REG_POSE_ID_FIRST) = i + 1;
 	}
-		
 }
 
 
@@ -195,10 +199,17 @@ void local_read(uint8_t addr, uint8_t nb_bytes){
 	uint16_t top = (uint16_t)addr + nb_bytes;
 	if ( top < sizeof(regs) ){
 		axStatusPacket(AX_ERROR_NONE, regs + addr, nb_bytes);
+
 	} else if ((addr == AX_REG_RETURN_LEVEL) && (nb_bytes == 1)) {
 		axStatusPacket(AX_ERROR_NONE, &g_bRegReturnVal, 1);
+
+	// Special case voltage, to return a cached voltage (if any)
+	} else if ((addr == AX_REG_VOLTAGE) && (nb_bytes == 1)) {
+		ProcessGetVoltageRequest();
+
 	} else if ((addr >= AX_REG_POSE_FIRST_REG) && (top <= AX_REG_POSE_LAST_REG)) {
 		axStatusPacket(AX_ERROR_NONE, &GETPOSEREGVAL(addr), nb_bytes);
+
 	} else if ((addr >= AX_REG_SLOT_CUR_POSE_FIRST) && (top <= AX_REG_SLOT_CUR_POSE_LAST) && (nb_bytes == 2)) {
 		// Hack way to be able to retrieve the current value from my pose engine...
 		uint8_t abCurPose[2];
@@ -279,7 +290,7 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
 
 	int8_t cServosInterpolating = GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING);
 	uint16_t wMoveTime = *pb + (uint16_t)(*(pb+1) << 8);
-	uint16_t wMoveIters = (wMoveTime / BIOLOID_FRAME_LENGTH) + 1;
+	uint16_t wMoveIters = (wMoveTime / GETPOSEREGVAL(AX_REG_POSE_FRAME_TIME)) + 1;
 	pb +=2;
 	nb_bytes -= 2;	//
 	uint8_t err = AX_ERROR_NONE;
@@ -333,11 +344,17 @@ void ProcessPoseIDsCmd(uint8_t nb_bytes, uint8_t *pb) {
 #endif
 	}
 
-	// If we are now starting a new move 0 out the move timer.
-	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING))
-		pose_timer = 0;	// timer for processing poses.
+	// If we are now starting a new move 0 out the move timer and calculate a good timeout
 	if (cServosInterpolating < 0)
 		cServosInterpolating = 0;
+	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)) {
+		pose_timer = 0;	// timer for processing poses.
+		g_wPoseNextFrameTimeout =  GETPOSEREGVAL(AX_REG_POSE_FRAME_TIME)*TIMER_TICS_PER_MS;
+		// fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
+		// we fudge our start time to deal with this...
+		if (cServosInterpolating)
+			g_wPoseNextFrameTimeout += ((uint16_t)(GETPOSEREGVAL(AX_REG_POSE_SIZE) - cServosInterpolating) * 3)/2;
+	}
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = cServosInterpolating;   // don't clear if other move is happening
 #ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = (uint8_t)cServosInterpolating;
@@ -370,7 +387,7 @@ void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
 	
 	int8_t cServosInterpolating = GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING);
 	uint16_t wMoveTime = *pb + (uint16_t)(*(pb+1) << 8);
-	uint16_t wMoveIters = (wMoveTime / BIOLOID_FRAME_LENGTH) + 1;
+	uint16_t wMoveIters = (wMoveTime / GETPOSEREGVAL(AX_REG_POSE_FRAME_TIME)) + 1;
 	pb +=2;
 	uint8_t err = AX_ERROR_NONE;
 #ifdef DEBUG_POSE
@@ -423,11 +440,19 @@ void ProcessPoseMaskCmd(uint8_t nb_bytes, uint8_t *pb) {
 #endif			
 		}
 	} 
-	// If we are now starting a new move 0 out the move timer.
-	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING))
-		pose_timer = 0;	// timer for processing poses.
 	if (cServosInterpolating < 0)
 		cServosInterpolating = 0;
+
+	// If we are now starting a new move 0 out the move timer.
+	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING)) {
+		pose_timer = 0;	// timer for processing poses.
+		g_wPoseNextFrameTimeout =  GETPOSEREGVAL(AX_REG_POSE_FRAME_TIME)*TIMER_TICS_PER_MS;
+		// fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
+		// we fudge our start time to deal with this...
+		if (cServosInterpolating)
+			g_wPoseNextFrameTimeout += ((uint16_t)(GETPOSEREGVAL(AX_REG_POSE_SIZE) - cServosInterpolating) * 3)/2;
+	}
+
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = cServosInterpolating;   // don't clear if other move is happening
 #ifdef DEBUG_POSE
 	abInfoRet[cbInfoRet++] = (uint8_t)cServosInterpolating;
@@ -463,14 +488,13 @@ void ProcessPoseAbortCmd(uint8_t nb_bytes, uint8_t *pb) {
 
 void PoseInterpolateStep(void) {
 	// If no interpolation is active or a frame timeout has not happened yet return now. 
-	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) || (pose_timer < POSE_FRAME_TIMER))
+	if (!GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) || (pose_timer < g_wPoseNextFrameTimeout))
 		return;
 #ifdef DEBUG
 	hwbb_up(PORTB7);
 #endif
 		
 	// Don't just set to zero as to not try to accumulate deltas from desired timings.	
-	//pose_timer -= POSE_FRAME_TIMER;	
 	pose_timer = 0;
 	
 	setTX();	// make sure we are in output mode. 
@@ -519,8 +543,29 @@ void PoseInterpolateStep(void) {
 	// And output the checksum for the move.
 	serial_write(0xff - (checksum % 256));
 	GETPOSEREGVAL(AX_REG_POSE_INTERPOLATING) = bCntStillMoving;	// Update cnt to still do...
+	g_wPoseNextFrameTimeout =  GETPOSEREGVAL(AX_REG_POSE_FRAME_TIME)*TIMER_TICS_PER_MS;
+	// fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time, 
+	// we fudge our start time to deal with this...
+	if (bCntStillMoving)	
+		g_wPoseNextFrameTimeout += ((uint16_t)(GETPOSEREGVAL(AX_REG_POSE_SIZE) - bCntStillMoving) * 3)/2;
 #ifdef DEBUG
 	hwbb_down(PORTB7);
 #endif
 }
 
+/*
+ * ProcessGetVoltageRequest - This procedure returns a voltage value that it retreves from one or more
+ *     servos.  When the user has setup a servo to return voltages, our code will periodically ask that
+ *     servo(s) for it's current voltage, which we return.  We do this as to be able to try avoid asking at the
+ *     wrong time, when we may be active in interpolation. 
+ */
+void ProcessGetVoltageRequest(void) {
+	// BUGBUG:: not implemented yet
+	uint8_t bServoID = GETPOSEREGVAL(AX_REG_VOLTAGE);
+	if (bServoID == 0xff)
+		bServoID = GETPOSEREGVAL(AX_REG_POSE_ID_FIRST);
+	passthrough_mode = AX_DIVERT;
+	uint8_t bVoltage = axGetRegister(bServoID, AX_REG_PRESENT_VOLTAGE, 1);		
+	passthrough_mode = AX_PASSTHROUGH;
+	axStatusPacket(AX_ERROR_NONE, &bVoltage, 1);
+}

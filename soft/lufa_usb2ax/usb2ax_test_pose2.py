@@ -3,6 +3,7 @@ import serial
 import time
 import thread
 import threading
+import sys
 
 #This test application pings and moves servo #14. Use only on a servo with nothing mounted on it!
 #Requires PySerial
@@ -35,6 +36,11 @@ AX_REG_POSE_INTERPOLATING = 30
 AX_REG_POSE_SIZE		  = 31
 AX_REG_POSE_ID_FIRST	  = 32  # Try with 32 of these to start off with.
 
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        com_port = sys.argv[1]
+
+print "Running tests on: " + com_port
 
 ser = serial.Serial(com_port, baudrate)  # open serial port
 

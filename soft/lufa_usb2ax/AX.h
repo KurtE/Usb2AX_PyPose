@@ -40,7 +40,7 @@ Original copyright notice :
 
 #define BIOLOID_SHIFT             3
 #define BIOLOID_FRAME_LENGTH      20 /* 33 */
-#define POSE_FRAME_TIMER	(BIOLOID_FRAME_LENGTH*50)
+#define POSE_FRAME_TIMER	(BIOLOID_FRAME_LENGTH*TIMER_TICS_PER_MS)
 
 #define AX_ID_DEVICE        0xFD
 #define AX_ID_BROADCAST     0xFE
@@ -69,6 +69,7 @@ Original copyright notice :
 #define AX_REG_VERSION              2
 #define AX_REG_ID                   3
 #define AX_REG_RETURN_LEVEL        16  // new
+#define AX_REG_PRESENT_VOLTAGE     42
 
 #define AX_GOAL_POSITION_L          30
 #define AX_GOAL_POSITION_H          31
@@ -77,7 +78,9 @@ Original copyright notice :
 
 
 // Now for special ones for Pose downloads...
-#define AX_REG_POSE_FIRST_REG	   30
+#define AX_REG_POSE_FIRST_REG	   28
+#define AX_REG_VOLTAGE			   28	// Hack write-> which servo 0xff all - read -> gets cached voltage level
+#define AX_REG_POSE_FRAME_TIME	   29	// How long should each frame take in ms
 #define AX_REG_POSE_INTERPOLATING  30
 #define AX_REG_POSE_SIZE		   31
 #define AX_REG_POSE_ID_FIRST	   32  // Try with 31 of these to start off with.

@@ -3,12 +3,19 @@ import serial
 import time
 import thread
 import threading
+import sys
 
 #This test application pings and moves servo #14. Use only on a servo with nothing mounted on it!
 #Requires PySerial
 
 com_port = "COM63"
 baudrate = 1000000
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        com_port = sys.argv[1]
+
+print "Running tests on: " + com_port
 
 ser = serial.Serial(com_port, baudrate)  # open serial port
 

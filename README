@@ -32,5 +32,48 @@ Fix Me!
 How to use Sparkfun Breakout Board
 ==================================
 
-Fix Me!
+As part of my testing, I have been using a couple of the Sparkfun Atmega32u4 break out boards.  The chips on these boards
+are slightly different than the Atmega32u2, but have similar enough functionality and they have several IO pins which are
+easy to use, which is useful when debugging. 
 
+To make the board work the same, I replaced the boot loader that was shipped by Sparkfun, with the debug boot loader that
+Atmel ships blank chips with.  You can download these boot loaders up at: http://www.atmel.com/devices/atmega32u4.aspx?tab=documents
+
+I use the Tools/Device Program command in AtmelStudo (6.1).  I used an AVRJTAGICE MK2, but any support ISP should work.  
+
+Once the bootloader is installed, I then install the firmware for the first time.  I use the python script to set the device into
+program mode, typing a command like: python usb2ax_run_bootload.py com11
+Note: I updated the python script to allow me to specify a com port on it, if one is not specified it will use the default on
+in the script.
+
+After this script runs, the device will reboot and it will show up with a different device type.  You can then program the 
+device.  There are a couple of batch files in the software directory. prog.bat is the default script for the USB2AX and 
+prog4 is for the atmega32u4 like the sparkfun board.
+
+Once you have the program programed for the first time, it will not properly run this program, until you use the ISP again and
+clear the bootrst fuse.
+
+Note: when you switch between working with the USBTOAX device and one of the Atmega32u4 devices.  You need to change the device
+type in the two makefiles in the soft directory and then rebuild the project. 
+
+One of the nice things about having a JTAG device like the one I mentioned or an Atmel Dragon, is the ability to do source level
+debugging on the device.  To do this you need to enable JTAG on the device, by setting the appropriate fuse. Then you need to
+setup the correct wires.  For my JTAG device with it's squid wire harness (breaks out all 10 wires to their own jumpers), you can
+setup the Sparkfun board something like:
+
+Color   Signal  Pin
+Black   TCK     PF4
+White   GND     GND
+Gray    TDO     PF6
+Purple  VRef    VCC on ISP
+Blue    TMS     PF5
+Green   NSRST   Reset
+Yellow  N/A
+Orange  NTRST
+Red     TDI     PF7
+Brown   GND
+
+Once you have this configured, you can hit F5 to start debugging, set breakpoints... Note: I believe that when I do this it 
+completely erases the device.  So once I am completely done, I will probably need to reload the bootloader onto this device.
+
+Probably still Fix Me!

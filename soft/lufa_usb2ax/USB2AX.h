@@ -81,6 +81,7 @@ extern volatile uint8_t local_rx_buffer_count;
 
 extern volatile uint8_t usart_timer; // timer for RX read timeout
 extern volatile uint16_t pose_timer;	// timer for poses. 
+#define	TIMER_TICS_PER_MS 50
 #define   USART_TIMEOUT  50   //  1ms
 #define    SEND_TIMEOUT  4    //  80us
 #define RECEIVE_TIMEOUT  100  //  2ms
