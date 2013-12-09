@@ -80,11 +80,16 @@ extern uint8_t local_rx_buffer[];
 extern volatile uint8_t local_rx_buffer_count;
 
 extern volatile uint8_t usart_timer; // timer for RX read timeout
-extern volatile uint16_t pose_timer;	// timer for poses. 
+extern volatile uint16_t g_wSysTimer;	// timer for poses. 
 #define	TIMER_TICS_PER_MS 50
-#define   USART_TIMEOUT  50   //  1ms
+#define   USART_TIMEOUT  100   //  2ms	// Was 1ms (50)
 #define    SEND_TIMEOUT  4    //  80us
 #define RECEIVE_TIMEOUT  100  //  2ms
+
+// Clock functions.  
+extern uint16_t getSysTimer(void);
+extern uint8_t  timeElapsed(uint16_t wTimeRef, uint16_t wTimeElapse);
+
 
 //Dynamixel device Control table
 #define MODEL_NUMBER_L      0x01

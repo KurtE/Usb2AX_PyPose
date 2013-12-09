@@ -118,7 +118,7 @@ uint8_t rxbyte_count = 0;   // number of used bytes in rxbyte buffer
 volatile uint8_t receive_timer = 0; // timer for Dynamixel packet reception from USB
 volatile uint8_t    send_timer = 0; // timer for sending data to the PC
 volatile uint8_t   usart_timer = 0; // timer for RX read timeout
-volatile uint16_t  pose_timer;		// timer for poses.
+volatile uint16_t  g_wSysTimer;		// timer for poses.
 
 
 int main(void){
@@ -146,7 +146,7 @@ int main(void){
 #ifdef DEBUG				
 		hwb_toggle(PORTD7);
 #endif		
-		PoseInterpolateStep();	// Not sure when best to call this in loop
+		PoseInterpolateStepTask();	// Not sure when best to call this in loop
         
 		while (USB_DeviceState != DEVICE_STATE_Configured); // wait for device to be configured
 
@@ -156,6 +156,9 @@ int main(void){
         send_USB_data();
         
         USB_USBTask();
+		
+		// if Configured to do so, from time to time ask servo(s) for their current voltage and cache it.
+		CheckAndCacheServoVoltageTask();
     }
 }
 
@@ -175,7 +178,7 @@ void send_USB_data(void){
 		
 		if (BufferCount) {
 			// if there are more bytes in the buffer than what can be put in the data bank OR there are a few bytes and they have been waiting for too long
-			if ( BufferCount >= CDC_TXRX_EPSIZE || send_timer > SEND_TIMEOUT ){
+			if ( BufferCount >= CDC_TXRX_EPSIZE || send_timer > g_usbtoaxregs.s.bUSB_SendTimeout ){
 				send_timer = 0;
 				
 				// load the IN data bank until full or until we loaded all the bytes we know we have
@@ -381,7 +384,7 @@ void process_incoming_USB_data(void){
 	
 	// Timeout on state machine while waiting on further USB data
     if(ax_state != AX_SEARCH_FIRST_FF){
-        if (receive_timer > RECEIVE_TIMEOUT){
+        if (receive_timer > g_usbtoaxregs.s.bUSB_ReceiveTimeout){
             setTX();
 			pass_bytes(rxbyte_count);
             ax_state = AX_SEARCH_FIRST_FF;
@@ -477,8 +480,26 @@ ISR(TIMER0_COMPA_vect, ISR_BLOCK){
 	receive_timer++;
     send_timer++;
 	usart_timer++;
-	pose_timer++;
+	g_wSysTimer++;
 }
+
+uint16_t getSysTimer(void) {
+	uint8_t sreg;
+	uint16_t wVal;
+
+	sreg = SREG;
+	cli();
+	wVal = g_wSysTimer;
+	SREG = sreg;
+
+	return wVal;
+}
+
+extern uint8_t  timeElapsed(uint16_t wTimeRef, uint16_t wTimeElapse) {
+	uint16_t wDeltaTime = 	getSysTimer() - wTimeRef;
+	return ((wDeltaTime >= wTimeElapse)? 0xff : 0);
+}
+
 
 
 /** Configures the board hardware and chip peripherals. */

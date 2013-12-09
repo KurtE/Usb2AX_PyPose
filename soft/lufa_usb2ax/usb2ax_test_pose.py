@@ -31,9 +31,15 @@ AX_GOAL_POSITION_L       =   30
 AX_GOAL_POSITION_H       =   31
 
 USBTOAX_ID      =        0xFD
-AX_REG_POSE_INTERPOLATING = 30
-AX_REG_POSE_SIZE		  = 31
-AX_REG_POSE_ID_FIRST	  = 32  # Try with 32 of these to start off with.
+USBTOAX_REG_USB_SEND_TIMEOUT   = 24
+USBTOAX_REG_USB_RECEIVE_TIMEOUT = 25 
+USBTOAX_REG_USART_RECEIVE_TIMEOUT = 26
+AX_REG_VOLTAGE	          =  27 # Hack write-> which servo 0xff all - read -> gets cached voltage level
+USBTOAX_REG_VOLTAGE_FRAME_TIME = 28
+AX_REG_POSE_FRAME_TIME	  =  29 # How long should each frame take in ms
+AX_REG_POSE_INTERPOLATING =  30
+AX_REG_POSE_SIZE	  =  31
+AX_REG_POSE_ID_FIRST	  =  32  # Try with 32 of these to start off with.
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -130,21 +136,33 @@ writeReg(USBTOAX_ID, AX_REG_POSE_SIZE, 1)
 # set the 1st id to our servo
 writeReg(USBTOAX_ID, AX_REG_POSE_ID_FIRST, servo)
 
+# Ask system to try get voltage values from this one
+writeReg(USBTOAX_ID, AX_REG_VOLTAGE, servo)
+
+
 # now lets try to read a few registers.
 readReg(USBTOAX_ID, AX_MODEL_NUMBER_L, 2)
 readReg(USBTOAX_ID, AX_VERSION, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_SIZE, 1)
 readReg(USBTOAX_ID, AX_REG_POSE_ID_FIRST, 1)
 
+readReg(USBTOAX_ID, USBTOAX_REG_USB_SEND_TIMEOUT, 1)
+readReg(USBTOAX_ID, USBTOAX_REG_USB_RECEIVE_TIMEOUT, 1)
+readReg(USBTOAX_ID, USBTOAX_REG_USART_RECEIVE_TIMEOUT, 1)
+readReg(USBTOAX_ID, USBTOAX_REG_VOLTAGE_FRAME_TIME, 1)
+
+
 doPoseMask(512, 500)
 time.sleep(0.5)
 
 try:
     while True:
-        doPoseMask(256, 2000)
-        time.sleep(2)
-        doPoseID(768, 2000)
-        time.sleep(2)
+        doPoseMask(256, 1000)
+        time.sleep(.5)
+        readReg(USBTOAX_ID, AX_REG_VOLTAGE, 1)
+        time.sleep(.5)
+        doPoseID(768, 1000)
+        time.sleep(1)
 
 except:
     stop_flag.set()
