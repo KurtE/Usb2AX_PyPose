@@ -29,6 +29,25 @@ Additional Functionality
 
 Fix Me!
 
+How to update the USB2AX board
+==============================
+
+The update process relies on the Atmel Flip functionality.  You can download this from http://www.atmel.com/tools/FLIP.aspx
+There is a command line program that is part of the flip proram that is used as one of the batch files for updating the firmware
+on an USB2AX board. 
+
+In order to reprogram the USB2AX board you need to get the board into the program mode. There is more information up at: 
+http://www.xevelabs.com/doku.php?id=product:usb2ax:firmware_update
+
+The main thing that is needed is to send a special packet to the USB2AX, that reboots the board and jumps to the bootloader. there is
+a python script usb2ax_run_bootload.py in the soft\lufa_usb2ax folder that is setup to do this.  I have made some simple enhancements to
+this script that allows me to pass in the comm port to this script.  So for example what I type on my machine to setup the USB2AXZ on my
+machine to be in the bootloader is: python usb2ax_run_bootload.py com11
+
+Once the script runs sucessfully, the USB2AX device will be rebooted and will shop up as a different type of device.  Once this is done you
+can run the batch file prog.bat which should use the program that was installed as part of the flip program to install the hex file to the
+USB2AX.  Once this completes the USB2AX will reboot and again show up as as comm port. 
+
 How to use Sparkfun Breakout Board
 ==================================
 
