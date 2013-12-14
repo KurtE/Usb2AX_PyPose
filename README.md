@@ -28,7 +28,7 @@ The USB2AX device is a small board that you can plug into a USB port on your com
 that is used to interface to Robotis AX and MX level servos (ttl). The board sits on the AX buss with an address of 0xfd and reponds
 to a subset and superset of the standard AX12 packets.  The board is built around an Atmel Atmega32u2 chip.
 
-The AX12 packets are in the form: <0xff> <0xff> <device id> <length> <instruction> <parameters...> <checksum>
+The AX12 packets are in the form: \<0xff\> \<0xff\> \<device id\> \<length\> \<instruction\> \<parameters...\> \<checksum\>
 
 The Standard firmware supports some of the standard instructions: 
 0x2 (Read Data) - Will return some information like model number and version
@@ -60,20 +60,20 @@ Many of the parameters that I added were to support the Interpolation code, but 
 like the ability to set timeout values and also some support to monitor servo voltages.  Most of the new ones are RW,
 although are some special functionality.
 
-#define USB2AX_REG_USB_SEND_TIMEOUT    24   // Timeout for USB sends in clock tics (2us)
-#define USB2AX_REG_USB_RECEIVE_TIMEOUT 25   // Timeout for USB Receives in clock tics
-#define USB2AX_REG_USART_RECEIVE_TIMEOUT 26 // How long to wait on USART (AX Buss) for servo to respond per character
+\#define USB2AX_REG_USB_SEND_TIMEOUT    24   // Timeout for USB sends in clock tics (2us)
+\#define USB2AX_REG_USB_RECEIVE_TIMEOUT 25   // Timeout for USB Receives in clock tics
+\#define USB2AX_REG_USART_RECEIVE_TIMEOUT 26 // How long to wait on USART (AX Buss) for servo to respond per character
 
-#define USB2AX_REG_VOLTAGE			   27	// Hack write-> which servo 0xff all - read -> gets cached voltage level
-#define USB2AX_REG_VOLTAGE_FRAME_TIME 28    // How often to check for voltages in tics
+\#define USB2AX_REG_VOLTAGE			   27	// Hack write-\> which servo 0xff all - read -> gets cached voltage level
+\#define USB2AX_REG_VOLTAGE_FRAME_TIME 28    // How often to check for voltages in tics
 
-#define USB2AX_REG_POSE_FRAME_TIME	   29	// How long should each frame take in ms
-#define USB2AX_REG_POSE_INTERPOLATING  30   // Mostly Read only - how many servos are still moving
-#define USB2AX_REG_POSE_SIZE		   31   // How many servos should we support with the pose engine (0-31) default 31
-#define USB2AX_REG_POSE_ID_FIRST	   32   // ID of the first servo
+\#define USB2AX_REG_POSE_FRAME_TIME	   29	// How long should each frame take in ms
+\#define USB2AX_REG_POSE_INTERPOLATING  30   // Mostly Read only - how many servos are still moving
+\#define USB2AX_REG_POSE_SIZE		   31   // How many servos should we support with the pose engine (0-31) default 31
+\#define USB2AX_REG_POSE_ID_FIRST	   32   // ID of the first servo
 ... (32-62) are the ids of all of the servos.  We init to 1, 2, 3, 4, ...  
 
-#define USB2AX_REG_SLOT_CUR_POSE_FIRST  64  // Mostly Read-only - Can grab current position for each of the servos, not needed much.
+\#define USB2AX_REG_SLOT_CUR_POSE_FIRST  64  // Mostly Read-only - Can grab current position for each of the servos, not needed much.
 
 New command: Read Pose(0x85)
 -----------------------------
@@ -85,19 +85,19 @@ New Command: Pose Command by IDs(0x86)
 --------------------------------------
 
 This command allows you to start up a pose for all or a subset of the servos that are defined as part of the pose. 
-<0xff> <0xff> <0xfd> <len> <0x86> <move time l> <move time h> <id1> <goal Low> <goal high> <id2> <goal 2 l> <goal 2 h> ... <chksum>
+\<0xff\> \<0xff\> \<0xfd\> \<len\> \<0x86\> \<move time l\> \<move time h\> \<id1\> \<goal Low\> \<goal high\> \<id2\> \<goal 2 l\> \<goal 2 h\> ... \<chksum\>
 
 The first two arguments that are passed to this command is the time the move should take in ms. 
 
 This is followed by 3 bytes per servo that are associated with this move.  The first byte is the ID of the servo, 
-the next two bytes are the new goal position <goal low> <goal high>
+the next two bytes are the new goal position \<goal low\> \<goal high\>
 
 New Command: Pose Command by Servo Mask(0x87)
 --------------------------------------
 
 Another form of the Pose command is instead of each time specifying the servo ID each time, instead we use a bit mask 
 to specify which of the logical pose slots we are specifying new positions for.
-<0xff> <0xff> <0xfd> <len> <0x86> <move time l> <move time h> <Mask byte 1 L><Mask 2><M3><m4><M5 H> <goal 1L><goal 1H>...<chksum>
+\<0xff\> \<0xff\> \<0xfd\> \<len\> \<0x86\> \<move time l\> \<move time h\> \<Mask byte 1 L\>\<Mask 2\>\<M3\>\<m4\>\<M5 H\> \<goal 1L\>\<goal 1H\>...\<chksum\>
 
 Again 2 bytes for move time (low high)
 
